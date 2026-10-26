@@ -1,0 +1,91 @@
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #172033;
+}
+
+.app header {
+  background: #172554;
+  color: white;
+  padding: 20px 8%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h2 {
+  margin: 0;
+}
+
+header p {
+  color: #cbd5e1;
+}
+
+main {
+  max-width: 800px;
+  margin: 55px auto;
+  padding: 20px;
+}
+
+main h1 {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+main > p {
+  color: #64748b;
+}
+
+input[type="search"] {
+  width: 100%;
+  padding: 16px;
+  margin: 20px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 16px;
+  background: white;
+}
+
+.pdf-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background: white;
+  padding: 18px;
+  margin: 12px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.pdf-card strong {
+  flex: 1;
+}
+
+.pdf-card a {
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 7px;
+}
+
+.pdf-card a:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 500px) {
+  .pdf-card {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  main h1 {
+    font-size: 28px;
+  }
+}
