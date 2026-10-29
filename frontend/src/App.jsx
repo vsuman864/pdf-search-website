@@ -9,6 +9,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
 
   async function loadPdfs() {
     setLoading(true);
@@ -51,12 +52,12 @@ function App() {
 
     const invalid = files.find(
       (file) =>
-        !file.name.toLowerCase().endsWith(".pdf") ||
+        file.type !== "application/pdf" ||
         file.size > 10 * 1024 * 1024
     );
 
     if (invalid) {
-      setMessage("Sirf PDF files, maximum 10 MB per file.");
+      setMessage("Sirf PDF files upload karo (maximum 10 MB per file).");
       return;
     }
 
@@ -84,7 +85,7 @@ function App() {
       }
     }
 
-    setMessage("PDF upload ho gayi!");
+    setMessage("PDF successfully upload ho gayi!");
     await loadPdfs();
     setUploading(false);
   }
@@ -103,8 +104,10 @@ function App() {
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName.split("/").pop();
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   const results = pdfs.filter((pdf) =>
@@ -112,55 +115,149 @@ function App() {
   );
 
   return (
-    <div className="app">
-      <header>
-        <h2>PDF Finder</h2>
-        <p>Search. Find. Download.</p>
+    <div className={`app ${darkMode ? "dark" : "light"}`}>
+      <header className="topbar">
+        <a className="brand" href="/" aria-label="PDF Finder home">
+          <span className="brand-icon">P</span>
+          <span>PDF Finder</span>
+        </a>
+
+        <div className="topbar-right">
+          <span className="tagline">Your study library</span>
+          <button
+            className="theme-toggle"
+            onClick={() => setDarkMode((current) => !current)}
+            aria-label="Toggle light and dark theme"
+          >
+            {darkMode ? "☀️ Light" : "🌙 Dark"}
+          </button>
+        </div>
       </header>
 
-      <main>
-        <h1>Find Your PDF</h1>
-        <p>PDF upload karo aur baad mein search karke download karo.</p>
+      <main className="main-content">
+        <section className="hero">
+          <div className="eyebrow">
+            <span className="status-dot" />
+            YOUR PERSONAL DOCUMENT LIBRARY
+          </div>
 
-        <label htmlFor="pdf-upload">Import PDF files</label>
-        <input
-          id="pdf-upload"
-          type="file"
-          accept=".pdf,application/pdf"
-          multiple
-          onChange={handleUpload}
-          disabled={uploading}
-        />
+          <h1>
+            Find your next
+            <br />
+            <span>great resource.</span>
+          </h1>
 
-        {uploading && <p>PDF upload ho rahi hai...</p>}
-        {message && <p role="status">{message}</p>}
+          <p className="hero-description">
+            Upload, discover and download your study PDFs in one simple place.
+          </p>
 
-        <input
-          type="search"
-          placeholder="PDF ka naam search karo..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+          <div className="search-box">
+            <span className="search-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              placeholder="Search PDFs by name..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search PDFs"
+            />
+            {search && (
+              <button
+                className="clear-search"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </section>
 
-        {loading ? (
-          <p>PDFs load ho rahi hain...</p>
-        ) : (
-          <>
-            <p>{results.length} results found</p>
+        <section className="library-section">
+          <div className="section-heading">
+            <div>
+              <h2>Your library</h2>
+              <p>Browse your uploaded documents.</p>
+            </div>
+            <span className="result-count">
+              {loading ? "Loading..." : `${results.length} PDFs`}
+            </span>
+          </div>
 
-            {results.map((pdf) => (
-              <div className="pdf-card" key={pdf.id}>
-                <span>📄</span>
-                <strong>{pdf.name}</strong>
-                <button onClick={() => downloadPdf(pdf.file)}>
-                  Download
+          <label className={`upload-panel ${uploading ? "uploading" : ""}`}>
+            <span className="upload-icon">{uploading ? "⏳" : "＋"}</span>
+            <span className="upload-copy">
+              <strong>{uploading ? "Uploading PDFs..." : "Add PDF documents"}</strong>
+              <small>Choose PDF files · Max 10 MB each</small>
+            </span>
+            <span className="upload-action">
+              {uploading ? "Please wait" : "Browse files"}
+            </span>
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              multiple
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+          </label>
+
+          {message && (
+            <div className="notice" role="status">
+              {message}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="empty-state">
+              <span className="empty-icon">◌</span>
+              <h3>Loading your library</h3>
+              <p>Fetching your PDFs from cloud storage...</p>
+            </div>
+          ) : results.length > 0 ? (
+            <div className="pdf-grid">
+              {results.map((pdf) => (
+                <article className="pdf-card" key={pdf.id}>
+                  <div className="card-top">
+                    <div className="file-icon">PDF</div>
+                    <span className="file-type">DOCUMENT</span>
+                  </div>
+                  <h3 title={pdf.name}>{pdf.name}</h3>
+                  <p className="file-description">
+                    PDF document · Ready to download
+                  </p>
+                  <div className="card-actions">
+                    <button
+                      className="download-button"
+                      onClick={() => downloadPdf(pdf.file)}
+                    >
+                      <span aria-hidden="true">↓</span> Download PDF
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <span className="empty-icon">▤</span>
+              <h3>{search ? "No matching PDFs" : "Your library is empty"}</h3>
+              <p>
+                {search
+                  ? "Try another name or clear your search."
+                  : "Upload a PDF above and it will appear here."}
+              </p>
+              {search && (
+                <button className="text-button" onClick={() => setSearch("")}>
+                  Clear search
                 </button>
-              </div>
-            ))}
+              )}
+            </div>
+          )}
+        </section>
 
-            {results.length === 0 && <p>Koi PDF nahi mili.</p>}
-          </>
-        )}
+        <footer className="footer">
+          <span>PDF Finder</span>
+          <span>Made for learning.</span>
+        </footer>
       </main>
     </div>
   );
