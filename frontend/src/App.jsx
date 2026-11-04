@@ -1,7 +1,14 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import "./App.css";
+import { useAuth } from "./AuthGate";
+
+const NAV_ITEMS = [
+  { id: "home", label: "Home" },
+  { id: "library", label: "Browse PDFs" },
+  { id: "upload", label: "Upload" },
+  { id: "about", label: "About" },
+];
 
 function App() {
   const [search, setSearch] = useState("");
@@ -10,6 +17,14 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [active, setActive] = useState("home");
+  const { session, openAuth, logout } = useAuth();
+
+  function goTo(id) {
+    setActive(id);
+    setMenuOpen(false);
+  }
 
   async function loadPdfs() {
     setLoading(true);
@@ -116,26 +131,84 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? "dark" : "light"}`}>
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="PDF Finder home">
-          <span className="brand-icon">P</span>
-          <span>PDF Finder</span>
-        </a>
+      <nav className="nav">
+        <div className="nav-inner">
+          <a className="nav-brand" href="#home" onClick={() => goTo("home")}>
+            <span className="nav-logo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+                <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                <path d="M9 13h6M9 17h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span>PDF Finder</span>
+          </a>
 
-        <div className="topbar-right">
-          <span className="tagline">Your study library</span>
-          <button
-            className="theme-toggle"
-            onClick={() => setDarkMode((current) => !current)}
-            aria-label="Toggle light and dark theme"
-          >
-            {darkMode ? "☀️ Light" : "🌙 Dark"}
-          </button>
+          <div className={`nav-links ${menuOpen ? "open" : ""}`}>
+            {NAV_ITEMS.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className={active === item.id ? "active" : ""}
+                onClick={() => goTo(item.id)}
+              >
+                {item.label}
+              </a>
+            ))}
+            {!session && (
+              <button
+                className="nav-mobile-only"
+                onClick={() => {
+                  setMenuOpen(false);
+                  openAuth("login");
+                }}
+              >
+                Log in
+              </button>
+            )}
+          </div>
+
+          <div className="nav-right">
+            <button
+              className="nav-theme"
+              onClick={() => setDarkMode((current) => !current)}
+              aria-label="Toggle light and dark theme"
+            >
+              {darkMode ? "☀️ Light" : "🌙 Dark"}
+            </button>
+            {session ? (
+              <button className="nav-logout" onClick={logout}>
+                Log out
+              </button>
+            ) : (
+              <>
+                <button className="nav-login" onClick={() => openAuth("login")}>
+                  Log in
+                </button>
+                <button className="nav-cta" onClick={() => openAuth("signup")}>
+                  Sign up
+                </button>
+              </>
+            )}
+            <button
+              className="nav-burger"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Toggle menu"
+              aria-expanded={menuOpen}
+            >
+              {menuOpen ? "✕" : "☰"}
+            </button>
+          </div>
         </div>
-      </header>
+      </nav>
 
       <main className="main-content">
-        <section className="hero">
+        <section className="hero" id="home">
           <div className="eyebrow">
             <span className="status-dot" />
             YOUR PERSONAL DOCUMENT LIBRARY
@@ -172,7 +245,7 @@ function App() {
           </div>
         </section>
 
-        <section className="library-section">
+        <section className="library-section" id="library">
           <div className="section-heading">
             <div>
               <h2>Your library</h2>
@@ -183,7 +256,11 @@ function App() {
             </span>
           </div>
 
-          <label className={`upload-panel ${uploading ? "uploading" : ""}`}>
+          {session ? (
+          <label
+            id="upload"
+            className={`upload-panel ${uploading ? "uploading" : ""}`}
+          >
             <span className="upload-icon">{uploading ? "⏳" : "＋"}</span>
             <span className="upload-copy">
               <strong>{uploading ? "Uploading PDFs..." : "Add PDF documents"}</strong>
@@ -200,6 +277,18 @@ function App() {
               disabled={uploading}
             />
           </label>
+          ) : (
+            <div id="upload" className="upload-panel locked">
+              <span className="upload-icon">🔒</span>
+              <span className="upload-copy">
+                <strong>Log in to upload PDFs</strong>
+                <small>Browsing and downloading is free. Uploading needs an account.</small>
+              </span>
+              <button className="upload-action" onClick={() => openAuth("login")}>
+                Log in
+              </button>
+            </div>
+          )}
 
           {message && (
             <div className="notice" role="status">
@@ -252,6 +341,14 @@ function App() {
               )}
             </div>
           )}
+        </section>
+
+        <section className="about-section" id="about">
+          <h2>About PDF Finder</h2>
+          <p>
+            PDF Finder is a simple place to upload, search and download your study
+            PDFs. Log in once and your library is ready on any device.
+          </p>
         </section>
 
         <footer className="footer">
