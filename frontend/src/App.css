@@ -14,9 +14,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
 body {
   margin: 0;
+  background: #ffffff;
+}
+
+/* Vite ka default (body flex + #root max-width/center) site ko beech me sikod deta tha */
+body {
+  display: block !important;
   min-width: 320px;
+}
+
+#root {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
 }
 
 button,
@@ -30,7 +45,7 @@ button {
 
 /* ---------- Skillory jaisa palette: navy + amber + teal ---------- */
 .app {
-  --bg: #f6f7fb;
+  --bg: #ffffff;
   --surface: #ffffff;
   --text: #12163a;
   --muted: #5b617c;
@@ -47,6 +62,7 @@ button {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
+  overflow-x: clip;
   transition: background 0.25s ease, color 0.25s ease;
 }
 
