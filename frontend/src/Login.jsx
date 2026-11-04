@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { supabase } from "./supabase";
-import "./Login.css";
 
 function LogoMark() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
         stroke="currentColor"
@@ -17,33 +16,61 @@ function LogoMark() {
   );
 }
 
-function Shell({ children }) {
+function Shell({ children, onBack }) {
   return (
     <main className="login-page">
-      <aside className="login-aside">
+      <header className="login-top">
         <div className="login-brand">
           <span className="login-logo"><LogoMark /></span>
           <span className="login-brand-name">PDF Finder</span>
+          {onBack && (
+            <button type="button" className="login-back" onClick={onBack}>
+              ← Back to home
+            </button>
+          )}
         </div>
+      </header>
 
-        <div className="login-pitch">
+      <div className="login-body">
+        <section className="login-pitch">
           <p className="login-eyebrow">Your study library</p>
           <h2>
             Find your next <span>great resource.</span>
           </h2>
-          <p>Upload, discover and download your study PDFs in one simple place.</p>
+          <p className="login-lead">
+            Upload, discover and download your study PDFs in one simple place.
+          </p>
           <ul>
             <li>Upload PDFs in seconds</li>
             <li>Search any file by name</li>
             <li>Download on any device</li>
           </ul>
-        </div>
-      </aside>
+        </section>
 
-      <section className="login-main">
         <div className="login-card">{children}</div>
-      </section>
+      </div>
     </main>
+  );
+}
+
+function Tabs({ mode, go }) {
+  return (
+    <div className="login-tabs">
+      <button
+        type="button"
+        className={"login-tab" + (mode === "password" ? " is-on" : "")}
+        onClick={() => go("password")}
+      >
+        Log in
+      </button>
+      <button
+        type="button"
+        className={"login-tab" + (mode === "email" ? " is-on" : "")}
+        onClick={() => go("email")}
+      >
+        Sign up
+      </button>
+    </div>
   );
 }
 
@@ -75,9 +102,9 @@ function PasswordField({ id, label, value, onChange, autoComplete }) {
   );
 }
 
-export default function Login({ onLogin }) {
-  // "password" = email+password login | "email" = naya user / forgot | "code" = OTP verify
-  const [mode, setMode] = useState("password");
+export default function Login({ onLogin, onBack, initialMode }) {
+  // "password" = email+password login | "email" = sign up / forgot | "code" = OTP verify
+  const [mode, setMode] = useState(initialMode || "password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -141,19 +168,21 @@ export default function Login({ onLogin }) {
 
   const titles = {
     password: "Welcome back",
-    email: "Create account or reset password",
+    email: "Create your account",
     code: "Check your email",
   };
 
   return (
-    <Shell>
+    <Shell onBack={onBack}>
+      {(mode === "password" || mode === "email") && <Tabs mode={mode} go={go} />}
+
       <h1 className="login-title">{titles[mode]}</h1>
 
       {mode === "password" && (
         <form onSubmit={loginWithPassword} className="login-form">
           <p className="login-sub">Log in to continue to PDF Finder.</p>
 
-          <label className="login-label" htmlFor="email">Email</label>
+          <label className="login-label" htmlFor="email">Email address</label>
           <input
             id="email"
             type="email"
@@ -173,34 +202,28 @@ export default function Login({ onLogin }) {
             autoComplete="current-password"
           />
 
-          {error && <p className="login-error" role="alert">{error}</p>}
-
-          <button className="login-btn" type="submit" disabled={loading}>
-            {loading ? "Logging in..." : "Log in"}
-          </button>
-
-          <div className="login-links">
+          <div className="login-row">
             <button type="button" className="login-link" onClick={() => go("email")}>
               Forgot password?
             </button>
           </div>
 
-          <p className="login-switch">
-            New here?{" "}
-            <button type="button" className="login-link" onClick={() => go("email")}>
-              Create an account
-            </button>
-          </p>
+          {error && <p className="login-error" role="alert">{error}</p>}
+
+          <button className="login-btn" type="submit" disabled={loading}>
+            {loading ? "Logging in..." : "Log in"}
+          </button>
         </form>
       )}
 
       {mode === "email" && (
         <form onSubmit={sendCode} className="login-form">
           <p className="login-sub">
-            Enter your email and we’ll send you a code. After verifying it, you’ll set a password.
+            We’ll email you a code to verify it, then you’ll set a password. Forgot your
+            password? Start here too.
           </p>
 
-          <label className="login-label" htmlFor="email2">Email</label>
+          <label className="login-label" htmlFor="email2">Email address</label>
           <input
             id="email2"
             type="email"
@@ -217,12 +240,6 @@ export default function Login({ onLogin }) {
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? "Sending..." : "Send code"}
           </button>
-
-          <p className="login-switch">
-            <button type="button" className="login-link" onClick={() => go("password")}>
-              Back to log in
-            </button>
-          </p>
         </form>
       )}
 
@@ -251,7 +268,7 @@ export default function Login({ onLogin }) {
             {loading ? "Checking..." : "Verify code"}
           </button>
 
-          <div className="login-links login-links-split">
+          <div className="login-row login-row-split">
             <button type="button" className="login-link" onClick={sendCode}>
               Resend code
             </button>
