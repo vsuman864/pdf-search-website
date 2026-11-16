@@ -20,6 +20,8 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState("home");
   const { session, openAuth, logout } = useAuth();
+  const [purchased, setPurchased] = useState([]); // kharidi hui PDFs ki ids
+  const [busyId, setBusyId] = useState(null);
 
   function goTo(id) {
     setActive(id);
@@ -29,25 +31,22 @@ function App() {
   async function loadPdfs() {
     setLoading(true);
 
-    const { data, error } = await supabase.storage
-      .from("pdf-files")
-      .list("", {
-        limit: 100,
-        sortBy: { column: "name", order: "asc" },
-      });
+    const { data, error } = await supabase
+      .from("pdfs")
+      .select("id, title, file_path, price_paise")
+      .order("created_at", { ascending: false });
 
     if (error) {
       setMessage("PDF load nahi hui: " + error.message);
       setPdfs([]);
     } else {
       setPdfs(
-        (data || [])
-          .filter((file) => file.name.toLowerCase().endsWith(".pdf"))
-          .map((file) => ({
-            id: file.id || file.name,
-            name: file.name.replace(/\.pdf$/i, ""),
-            file: file.name,
-          }))
+        (data || []).map((row) => ({
+          id: row.id,
+          name: row.title,
+          file: row.file_path,
+          price: row.price_paise,
+        }))
       );
       setMessage("");
     }
@@ -55,15 +54,31 @@ function App() {
     setLoading(false);
   }
 
+  async function loadPurchases() {
+    if (!session) {
+      setPurchased([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("purchases")
+      .select("pdf_id")
+      .eq("status", "paid");
+    setPurchased((data || []).map((row) => row.pdf_id));
+  }
+
   useEffect(() => {
     loadPdfs();
   }, []);
+
+  useEffect(() => {
+    loadPurchases();
+  }, [session?.user?.id]);
 
   async function handleUpload(event) {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
 
-    if (!files.length) return;
+    if (!files.length || !session) return;
 
     const invalid = files.find(
       (file) =>
@@ -98,6 +113,18 @@ function App() {
         setUploading(false);
         return;
       }
+
+      const { error: dbError } = await supabase.from("pdfs").insert({
+        title: file.name.replace(/\.pdf$/i, "").replace(/_/g, " "),
+        file_path: path,
+        uploaded_by: session.user.id,
+      });
+
+      if (dbError) {
+        setMessage("Upload error: " + dbError.message);
+        setUploading(false);
+        return;
+      }
     }
 
     setMessage("PDF successfully upload ho gayi!");
@@ -105,24 +132,113 @@ function App() {
     setUploading(false);
   }
 
-  async function downloadPdf(fileName) {
-    const { data, error } = await supabase.storage
-      .from("pdf-files")
-      .download(fileName);
+  // Razorpay ka checkout script ek baar load karo
+  function loadRazorpay() {
+    return new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }
 
-    if (error) {
-      setMessage("Download error: " + error.message);
+  // Paid PDF ka 60 second wala temporary link maango aur download karo
+  async function startDownload(pdf) {
+    const { data, error } = await supabase.functions.invoke("get-download-url", {
+      body: { pdf_id: pdf.id },
+    });
+
+    if (error || !data?.url) {
+      setMessage("Download error: link nahi ban paya. Thodi der baad try karo.");
       return;
     }
 
-    const url = URL.createObjectURL(data);
     const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName.split("/").pop();
+    link.href = data.url;
+    link.download = "";
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Button dabane par: login -> payment -> download
+  async function handlePdfAction(pdf) {
+    if (!session) {
+      openAuth("login");
+      return;
+    }
+
+    setBusyId(pdf.id);
+    setMessage("");
+
+    try {
+      if (purchased.includes(pdf.id)) {
+        await startDownload(pdf);
+        return;
+      }
+
+      const loaded = await loadRazorpay();
+      if (!loaded) {
+        setMessage("Payment window load nahi hui. Internet check karo.");
+        return;
+      }
+
+      const { data: order, error } = await supabase.functions.invoke("create-order", {
+        body: { pdf_id: pdf.id },
+      });
+
+      if (error || !order) {
+        setMessage("Order nahi ban paya. Thodi der baad try karo.");
+        return;
+      }
+
+      if (order.already_paid) {
+        await loadPurchases();
+        await startDownload(pdf);
+        return;
+      }
+
+      await new Promise((resolve) => {
+        const rzp = new window.Razorpay({
+          key: order.key_id,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.order_id,
+          name: "PDF Finder",
+          description: order.title,
+          prefill: { email: session.user.email },
+          theme: { color: "#e9a23b" },
+          handler: async (response) => {
+            const { error: verifyError } = await supabase.functions.invoke(
+              "verify-payment",
+              { body: response }
+            );
+
+            if (verifyError) {
+              setMessage(
+                "Payment ho gaya par verify nahi hua. Page refresh karke dekho."
+              );
+            } else {
+              await loadPurchases();
+              setMessage("Payment successful! Download shuru ho raha hai.");
+              await startDownload(pdf);
+            }
+            resolve();
+          },
+          modal: { ondismiss: () => resolve() },
+        });
+
+        rzp.on("payment.failed", () => {
+          setMessage("Payment fail ho gaya. Dobara try karo.");
+        });
+
+        rzp.open();
+      });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   const results = pdfs.filter((pdf) =>
@@ -282,7 +398,7 @@ function App() {
               <span className="upload-icon">🔒</span>
               <span className="upload-copy">
                 <strong>Log in to upload PDFs</strong>
-                <small>Browsing and downloading is free. Uploading needs an account.</small>
+                <small>Browsing is free. Uploading needs an account.</small>
               </span>
               <button className="upload-action" onClick={() => openAuth("login")}>
                 Log in
@@ -304,26 +420,45 @@ function App() {
             </div>
           ) : results.length > 0 ? (
             <div className="pdf-grid">
-              {results.map((pdf) => (
-                <article className="pdf-card" key={pdf.id}>
-                  <div className="card-top">
-                    <div className="file-icon">PDF</div>
-                    <span className="file-type">DOCUMENT</span>
-                  </div>
-                  <h3 title={pdf.name}>{pdf.name}</h3>
-                  <p className="file-description">
-                    PDF document · Ready to download
-                  </p>
-                  <div className="card-actions">
-                    <button
-                      className="download-button"
-                      onClick={() => downloadPdf(pdf.file)}
-                    >
-                      <span aria-hidden="true">↓</span> Download PDF
-                    </button>
-                  </div>
-                </article>
-              ))}
+              {results.map((pdf) => {
+                const bought = purchased.includes(pdf.id);
+                const price = pdf.price / 100;
+                return (
+                  <article className="pdf-card" key={pdf.id}>
+                    <div className="card-top">
+                      <div className="file-icon">PDF</div>
+                      <span className="file-type">
+                        {bought ? "PURCHASED" : `₹${price}`}
+                      </span>
+                    </div>
+                    <h3 title={pdf.name}>{pdf.name}</h3>
+                    <p className="file-description">
+                      {bought
+                        ? "Purchased · Download anytime"
+                        : `Pay ₹${price} once · Download instantly`}
+                    </p>
+                    <div className="card-actions">
+                      <button
+                        className="download-button"
+                        disabled={busyId === pdf.id}
+                        onClick={() => handlePdfAction(pdf)}
+                      >
+                        {busyId === pdf.id ? (
+                          "Please wait..."
+                        ) : bought ? (
+                          <>
+                            <span aria-hidden="true">↓</span> Download PDF
+                          </>
+                        ) : session ? (
+                          <>Pay ₹{price} &amp; Download</>
+                        ) : (
+                          <>Log in to buy · ₹{price}</>
+                        )}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state">
