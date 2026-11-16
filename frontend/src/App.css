@@ -1207,3 +1207,10 @@ html {
 .login-back:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* ---------- payment button states ---------- */
+.download-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
