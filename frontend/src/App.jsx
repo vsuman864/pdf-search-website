@@ -185,7 +185,7 @@ function App() {
         return;
       }
 
-      const { data: order, error } = await supabase.functions.invoke("create-order", {
+      const { data: order, error } = await supabase.functions.invoke("swift-worker", {
         body: { pdf_id: pdf.id },
       });
 
